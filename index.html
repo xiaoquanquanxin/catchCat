@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>cat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            -moz-user-select: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+
+        .wrap, html, body {
+            height: 100%;
+            width: 100%;
+            position: relative;
+            background-color: lightyellow;
+            overflow: hidden;
+        }
+
+        footer {
+            position: relative;
+            top: 0;
+            left: 0;
+            height: 200px;
+            width: 100%;
+            background-color: lightblue;
+        }
+
+        .container {
+            position: relative;
+            top: 0;
+            left: 0;
+            background-color: lightgreen;
+            width: 100%;
+            height: calc(100% - 200px);
+        }
+
+        .cat {
+            background-color: pink;
+            border-radius: 100px;
+            position: absolute;
+            z-index: +2;
+        }
+
+        .flee {
+            background-color: lightgrey;
+        }
+
+        .touch {
+            background-color: lightsalmon;
+        }
+
+        .catch {
+            background-color: lightyellow;
+        }
+
+        .time {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            margin: auto;
+        }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="container" id="container">
+        <div>
+            <time class="time" id="time"></time>
+        </div>
+    </div>
+    <footer></footer>
+</div>
+<script>
+    window.onload = function (){
+        const {innerWidth, innerHeight} = window;
+        const container = document.getElementById('container');
+        const time = document.getElementById('time');
+        //  周期 秒 * 60帧
+        let mainDelay = 30 * 60;
+        //  速度等级
+        const levelMap = {
+            0: 1,
+            1: 2,
+            2: 3,
+            3: 4,
+            4: 5,
+        };
+        //  生成的猫
+        const catList = [];
+        //  抓获的猫
+        const catchList = [];
+        //  一屏中猫的上限
+        const catMaxNum = 5;
+        //  生成猫的时间间隔/帧
+        const delay = 20;
+        //  运行的帧数
+        let runTimeCount = 0;
+
+        //  生成随机数
+        function random(min, max){
+            return (Math.random() * (max - min + 1)) | 0 + min;
+        }
+
+        //  生成猫
+        function catCreate(){
+            //  可以捕获的猫的数量>=一屏幕中猫的上限
+            if (catLiveNum() >= catMaxNum) {
+                return;
+            }
+            const cat = document.createElement('div');
+            //  cat的宽度
+            cat.width = 50;
+            cat.classList.add('cat');
+            const level = random(0, 4);
+            cat.level = levelMap[level];
+            cat.y = random(0, innerHeight - 200 - cat.width);
+            cat.x = innerWidth;
+            //  可以抓
+            cat.isLive = true;
+            // cat.innerText = level;
+            catList.push(cat);
+            catSize(cat);
+            catPosition(cat);
+            container.appendChild(cat);
+        }
+
+        //  可以捕获的猫的数量
+        function catLiveNum(){
+            return catList.reduce((prev, current) => {
+                return prev + (current.isLive ? 1 : 0);
+            }, 0);
+        }
+
+        //  猫的大小
+        function catSize(cat){
+            const {style} = cat;
+            style.height = `${cat.width}px`;
+            style.width = `${cat.width}px`;
+        }
+
+        //  猫的位置
+        function catPosition(cat){
+            cat.style.transform = `translate(${cat.x}px,${cat.y}px)`;
+        }
+
+        //  猫的运动
+        function catRun(cat){
+            const {level, x} = cat;
+            //  被触摸的猫不动
+            if (cat.isTouch) {
+                return;
+            }
+            cat.x = x - level;
+            //  猫出去了
+            if (cat.x + cat.width <= 0) {
+                const index = catList.indexOf(cat);
+                catList.splice(index, 1);
+                container.removeChild(cat);
+                return;
+            }
+            //  猫距离左侧还有0.5个身位
+            if (cat.x <= cat.width / 2) {
+                cat.classList.add('flee');
+                delete cat.isLive;
+            }
+
+            catPosition(cat);
+        }
+
+        runTimeFn();
+
+        function runTimeFn(){
+            if (mainDelay < 0) {
+                mainDelay = 0;
+                alert(catchList.length * 12);
+                return;
+            }
+            time.innerText = (mainDelay / 60).toFixed(2);
+            if (runTimeCount >= delay) {
+                runTimeCount = 0;
+                catCreate();
+            }
+            catList.forEach(cat => {
+                catRun(cat);
+            });
+            runTimeCount++;
+            mainDelay--;
+            window.requestAnimationFrame(runTimeFn);
+        }
+
+        //  触摸的对象
+        let touchTarget = null;
+        window.addEventListener('touchstart', (e) => {
+            const target = e.target;
+            const {isLive} = target;
+            if (!isLive) {
+                return;
+            }
+            if (target.isCatch) {
+                return;
+            }
+            touchTarget = target;
+            const {clientX, clientY} = e.targetTouches[0];
+            touchTarget.diffX = clientX - target.x;
+            touchTarget.diffY = clientY - target.y;
+            touchTarget.isTouch = true;
+            touchTarget.classList.add('touch');
+        });
+
+        window.addEventListener('touchmove', (e) => {
+            if (!touchTarget || !touchTarget.isTouch) {
+                return;
+            }
+            const {clientX, clientY} = e.targetTouches[0];
+            const {diffX, diffY} = touchTarget;
+            // console.log(diffX, diffY);
+            touchTarget.x = clientX - diffX;
+            touchTarget.y = clientY - diffY;
+            catPosition(touchTarget);
+        });
+        //  弹起
+        window.addEventListener('touchend', (e) => {
+            if (!touchTarget || !touchTarget.isTouch) {
+                return;
+            }
+
+            //  如果放置到碗里
+            if (touchTarget.y > innerHeight - 200 - touchTarget.width) {
+                const index = catList.indexOf(touchTarget);
+                catList.splice(index, 1);
+                touchTarget.classList.add('catch');
+                touchTarget.isCatch = true;
+                catchList.push(touchTarget);
+                touchTarget.y = Math.max(touchTarget.y, innerHeight - 200);
+                touchTarget.y = Math.min(touchTarget.y, innerHeight - touchTarget.width);
+                catPosition(touchTarget);
+            }
+
+            touchTarget.isTouch = false;
+            touchTarget.classList.remove('touch');
+            touchTarget = null;
+        });
+        document.body.addEventListener('touchmove', function (e){
+            e.preventDefault(); //阻止默认的处理方式(阻止下拉滑动的效果)
+        }, {passive: false});
+
+    }
+</script>
+</body>
+</html>
